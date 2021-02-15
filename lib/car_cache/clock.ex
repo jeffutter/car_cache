@@ -1,6 +1,4 @@
 defmodule CarCache.Clock do
-  use GenServer
-
   defstruct max_size: 1_000,
             size: 0,
             position: 0,
@@ -18,48 +16,9 @@ defmodule CarCache.Clock do
           clock_table: :ets.tid()
         }
 
-  def start_link(opts) do
-    name = Keyword.fetch!(opts, :name)
-
-    GenServer.start_link(__MODULE__, opts, name: name)
-  end
-
-  def get(name, key, fun) when is_function(fun, 0) do
-    case get(name, key) do
-      nil ->
-        value = fun.()
-        insert(name, key, value)
-        value
-
-      value ->
-        value
-    end
-  end
-
-  def get(name, key) do
-    table = :"#{name}_data"
-
-    case :ets.lookup(table, key) do
-      [] ->
-        nil
-
-      [{^key, value, 0, pos}] ->
-        promote(name, key, value, pos)
-        value
-
-      [{^key, value, 1, _pos}] ->
-        value
-    end
-  end
-
-  def insert(name, key, value) do
-    GenServer.cast(name, {:insert, key, value})
-  end
-
-  @impl true
-  def init(opts) do
+  @spec new(atom(), Keyword.t()) :: t()
+  def new(name, opts \\ []) do
     max_size = Keyword.get(opts, :max_size, 1_000)
-    name = Keyword.fetch!(opts, :name)
 
     data_name = :"#{name}_data"
     clock_name = :"#{name}_clock"
@@ -71,22 +30,61 @@ defmodule CarCache.Clock do
       :ets.insert(clock_table, {i, nil, 0})
     end
 
-    state = %__MODULE__{
+    %__MODULE__{
       max_size: max_size,
+      size: 0,
       data_name: data_name,
       clock_name: clock_name,
       data_table: data_table,
       clock_table: clock_table
     }
-
-    {:ok, state}
   end
 
-  @impl true
-  def handle_cast({:promote, key, value, pos}, state) do
-    case :ets.lookup(state.data_table, key) do
+  @spec get(t(), any()) :: any()
+  def get(clock, key) do
+    case :ets.lookup(clock.data_table, key) do
+      [] ->
+        nil
+
+      [{^key, value, 0, pos}] ->
+        promote(clock, key, value, pos)
+        value
+
+      [{^key, value, 1, _pos}] ->
+        value
+    end
+  end
+
+  @spec pop(t()) :: {any(), any(), 0 | 1, t()}
+  def pop(clock) do
+    p = clock.position
+
+    case :ets.lookup(clock.clock_table, p) do
+      [{^p, key, ref_bit}] when ref_bit == 0 or ref_bit == 1 ->
+        [{^key, value, ^ref_bit, ^p}] = :ets.lookup(clock.data_table, key)
+
+        :ets.delete(clock.data_table, key)
+        :ets.insert(clock.clock_table, {p, nil, 0})
+
+        {key, value, ref_bit, %__MODULE__{clock | position: p + 1, size: clock.size - 1}}
+    end
+  end
+
+  @spec member?(t(), any()) :: boolean()
+  def member?(clock, key) do
+    :ets.member(clock.data_table, key)
+  end
+
+  @spec size(t()) :: non_neg_integer()
+  def size(clock) do
+    clock.size
+  end
+
+  @spec promote(t(), any(), any(), non_neg_integer()) :: t()
+  def promote(clock, key, value, pos) do
+    case :ets.lookup(clock.data_table, key) do
       [{^key, ^value, 0, ^pos}] ->
-        promote(state, key, pos)
+        promote(clock, key, pos)
 
         :ok
 
@@ -94,50 +92,43 @@ defmodule CarCache.Clock do
         :ok
     end
 
-    {:noreply, state}
+    clock
   end
 
-  @impl true
-  def handle_cast({:insert, key, value}, state) do
-    state =
-      Enum.reduce_while(
-        Stream.map(state.position..(state.max_size + state.position - 1), &rem(&1, state.max_size)),
-        state,
-        fn p, state ->
-          case :ets.lookup(state.clock_table, p) do
-            [{^p, nil, 0}] ->
-              insert_at(state, p, key, value)
+  @spec insert(t(), any(), any()) :: t()
+  def insert(clock, key, value) do
+    Enum.reduce_while(
+      Stream.map(clock.position..(clock.max_size + clock.position - 1), &rem(&1, clock.max_size)),
+      clock,
+      fn p, clock ->
+        case :ets.lookup(clock.clock_table, p) do
+          [{^p, nil, 0}] ->
+            insert_at(clock, p, key, value)
 
-              {:halt, %{state | position: p + 1}}
+            {:halt, %{clock | position: p + 1, size: clock.size + 1}}
 
-            [{^p, old_key, 0}] ->
-              :ets.delete(state.data_table, old_key)
+          [{^p, old_key, 0}] ->
+            :ets.delete(clock.data_table, old_key)
 
-              insert_at(state, p, key, value)
+            insert_at(clock, p, key, value)
 
-              {:halt, %{state | position: p + 1}}
+            {:halt, %{clock | position: p + 1}}
 
-            [{^p, key, 1}] ->
-              demote(state, key, p)
+          [{^p, key, 1}] ->
+            demote(clock, key, p)
 
-              {:halt, %{state | position: p + 1}}
+            {:halt, %{clock | position: p + 1}}
 
-            _ ->
-              {:cont, %{state | position: p + 1}}
-          end
+          _ ->
+            {:cont, %{clock | position: p + 1}}
         end
-      )
-
-    {:noreply, state}
+      end
+    )
   end
 
   defp insert_at(state, pos, key, value) do
     :ets.insert(state.data_table, {key, value, 0, pos})
     :ets.insert(state.clock_table, {pos, key, 0})
-  end
-
-  defp promote(name, key, value, pos) do
-    GenServer.cast(name, {:promote, key, value, pos})
   end
 
   defp promote(state, key, pos) do
