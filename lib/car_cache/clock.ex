@@ -1,27 +1,23 @@
 defmodule CarCache.Clock do
   alias CarCache.CLL
 
-  defstruct size: 0,
-            data_name: nil,
+  defstruct name: nil,
+            size: 0,
             data_table: nil,
             cll: CLL.new()
 
   @type t :: %__MODULE__{
+          name: atom(),
           size: non_neg_integer(),
-          data_name: atom(),
           data_table: :ets.tid(),
           cll: CLL.t()
         }
 
-  @spec new(atom(), Keyword.t()) :: t()
-  def new(name, _opts \\ []) do
-    data_name = :"#{name}_data"
-
-    data_table = :ets.new(data_name, [:named_table, :set, :protected, {:read_concurrency, true}])
-
+  @spec new(atom(), :ets.tid(), Keyword.t()) :: t()
+  def new(name, data_table, _opts \\ []) do
     %__MODULE__{
+      name: name,
       size: 0,
-      data_name: data_name,
       data_table: data_table,
       cll: CLL.new()
     }
@@ -29,15 +25,17 @@ defmodule CarCache.Clock do
 
   @spec get(t(), any()) :: {any(), t()}
   def get(clock, key) do
+    name = clock.name
+
     case :ets.lookup(clock.data_table, key) do
       [] ->
         {nil, clock}
 
-      [{^key, value, 0}] ->
+      [{^key, value, ^name, 0}] ->
         clock = promote(clock, key)
         {value, clock}
 
-      [{^key, value, 1}] ->
+      [{^key, value, ^name, 1}] ->
         {value, clock}
     end
   end
@@ -47,7 +45,7 @@ defmodule CarCache.Clock do
     case CLL.value(clock.cll) do
       {^key, 0} ->
         cll = CLL.replace(clock.cll, {key, 1})
-        :ets.update_element(clock.data_table, key, {3, 0})
+        :ets.update_element(clock.data_table, key, {4, 0})
 
         %__MODULE__{clock | cll: cll}
 
@@ -63,8 +61,9 @@ defmodule CarCache.Clock do
 
   @spec pop(t()) :: {any(), any(), 0 | 1, t()}
   def pop(clock) do
+    name = clock.name
     {key, ref_bit} = CLL.value(clock.cll)
-    [{^key, value, ^ref_bit}] = :ets.lookup(clock.data_table, key)
+    [{^key, value, ^name, ^ref_bit}] = :ets.lookup(clock.data_table, key)
 
     :ets.delete(clock.data_table, key)
 
@@ -75,7 +74,12 @@ defmodule CarCache.Clock do
 
   @spec member?(t(), any()) :: boolean()
   def member?(clock, key) do
-    :ets.member(clock.data_table, key)
+    name = clock.name
+
+    case :ets.lookup(clock.data_table, key) do
+      [{^key, _value, ^name, _ref_bit}] -> true
+      _ -> false
+    end
   end
 
   @spec size(t()) :: non_neg_integer()
@@ -87,7 +91,7 @@ defmodule CarCache.Clock do
   def insert(clock, key, value) do
     cll = CLL.insert(clock.cll, {key, 0})
     cll = CLL.next(cll)
-    :ets.insert(clock.data_table, {key, value, 0})
+    :ets.insert(clock.data_table, {key, value, clock.name, 0})
 
     %__MODULE__{clock | cll: cll, size: clock.size + 1}
   end

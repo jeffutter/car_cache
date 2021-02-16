@@ -1,35 +1,32 @@
 defmodule CarCache.LRU do
-  defstruct max_size: 1_000,
+  defstruct name: nil,
+            max_size: 1_000,
             size: 0,
-            data_name: nil,
             lru_name: nil,
             data_table: nil,
             lru_table: nil
 
   @type t :: %__MODULE__{
+          name: atom(),
           max_size: non_neg_integer(),
           size: non_neg_integer(),
-          data_name: atom(),
           lru_name: atom(),
           data_table: :ets.tid(),
           lru_table: :ets.tid()
         }
 
-  @spec new(atom(), Keyword.t()) :: t()
-  def new(name, opts \\ []) do
+  @spec new(atom(), :ets.tid(), Keyword.t()) :: t()
+  def new(name, data_table, opts \\ []) do
     max_size = Keyword.get(opts, :max_size, 1_000)
 
-    data_name = :"#{name}_data"
     lru_name = :"#{name}_lru"
-
-    data_table = :ets.new(data_name, [:named_table, :ordered_set, :protected, {:read_concurrency, true}])
 
     lru_table = :ets.new(lru_name, [:named_table, :ordered_set, :protected])
 
     %__MODULE__{
+      name: name,
       max_size: max_size,
       size: 0,
-      data_name: data_name,
       lru_name: lru_name,
       data_table: data_table,
       lru_table: lru_table
@@ -38,11 +35,13 @@ defmodule CarCache.LRU do
 
   @spec get(t(), any()) :: any()
   def get(lru, key) do
+    name = lru.name
+
     case :ets.lookup(lru.data_table, key) do
       [] ->
         nil
 
-      [{^key, value, _}] ->
+      [{^key, value, ^name, _}] ->
         touch(lru, key)
 
         value
@@ -51,9 +50,10 @@ defmodule CarCache.LRU do
 
   @spec pop(t()) :: {any(), any(), t()}
   def pop(lru) do
+    name = lru.name
     ts = :ets.first(lru.lru_table)
     [{^ts, key}] = :ets.lookup(lru.lru_table, ts)
-    [{^key, value, ^ts}] = :ets.lookup(lru.data_table, key)
+    [{^key, value, ^name, ^ts}] = :ets.lookup(lru.data_table, key)
 
     :ets.delete(lru.lru_table, ts)
     :ets.delete(lru.data_table, key)
@@ -63,7 +63,12 @@ defmodule CarCache.LRU do
 
   @spec member?(t(), any()) :: boolean()
   def member?(lru, key) do
-    :ets.member(lru.data_table, key)
+    name = lru.name
+
+    case :ets.lookup(lru.data_table, key) do
+      [{^key, _value, ^name, _ts}] -> true
+      _ -> false
+    end
   end
 
   @spec size(t()) :: non_neg_integer()
@@ -97,14 +102,16 @@ defmodule CarCache.LRU do
 
   @spec touch(t(), any()) :: :ok
   def touch(lru, key) do
+    name = lru.name
+
     case :ets.lookup(lru.data_table, key) do
       [] ->
         :ok
 
-      [{^key, _value, old_ts}] ->
+      [{^key, _value, ^name, old_ts}] ->
         ts = System.monotonic_time()
 
-        :ets.update_element(lru.data_table, key, {3, ts})
+        :ets.update_element(lru.data_table, key, {4, ts})
         :ets.delete(lru.lru_table, old_ts)
         :ets.insert(lru.lru_table, {ts, key})
 
@@ -115,6 +122,6 @@ defmodule CarCache.LRU do
   defp do_insert(state, key, value) do
     ts = System.monotonic_time()
     :ets.insert(state.lru_table, {ts, key})
-    :ets.insert(state.data_table, {key, value, ts})
+    :ets.insert(state.data_table, {key, value, state.name, ts})
   end
 end

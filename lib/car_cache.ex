@@ -5,6 +5,7 @@ defmodule CarCache do
   defstruct c: 1_000,
             name: nil,
             p: 0,
+            data: nil,
             t1: nil,
             t2: nil,
             b1: nil,
@@ -14,6 +15,7 @@ defmodule CarCache do
           c: non_neg_integer(),
           name: atom(),
           p: non_neg_integer(),
+          data: :ets.tid(),
           t1: Clock.t(),
           t2: Clock.t(),
           b1: LRU.t(),
@@ -22,14 +24,18 @@ defmodule CarCache do
 
   @spec new(atom()) :: t()
   def new(name, opts \\ []) do
+    data_name = :"#{name}_data"
+    data = :ets.new(data_name, [:named_table, :set, :public, {:read_concurrency, true}])
+
     %__MODULE__{
       c: Keyword.get(opts, :max_size, 1_000),
       name: name,
       p: 0,
-      t1: Clock.new(:"#{name}_t1"),
-      t2: Clock.new(:"#{name}_t2"),
-      b1: LRU.new(:"#{name}_b1"),
-      b2: LRU.new(:"#{name}_b2")
+      data: data,
+      t1: Clock.new(:"#{name}_t1", data),
+      t2: Clock.new(:"#{name}_t2", data),
+      b1: LRU.new(:"#{name}_b1", data),
+      b2: LRU.new(:"#{name}_b2", data)
     }
   end
 
