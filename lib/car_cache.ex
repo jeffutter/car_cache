@@ -39,24 +39,27 @@ defmodule CarCache do
     }
   end
 
-  @spec get(t(), any()) :: {any(), t()}
+  @spec get(t(), any()) :: any()
   def get(car, key) do
-    case Clock.get(car.t1, key) do
-      {nil, t1} ->
-        {value, t2} = Clock.get(car.t2, key)
+    t1_name = car.t1.name
+    t2_name = car.t2.name
 
-        car = %__MODULE__{car | t1: t1, t2: t2}
+    case :ets.lookup(car.data, key) do
+      [{^key, value, ^t1_name, 0}] ->
+        :ets.update_element(car.data, key, {4, 1})
+        value
 
-        IO.inspect("CACHE HIT: T2")
+      [{^key, value, ^t1_name, 1}] ->
+        value
 
-        {value, car}
+      [{^key, value, ^t2_name, 0}] ->
+        :ets.update_element(car.data, key, {4, 1})
+        value
 
-      {value, t1} ->
-        car = %__MODULE__{car | t1: t1}
+      [{^key, value, ^t2_name, 1}] ->
+        value
 
-        IO.inspect("CACHE HIT: T1")
-
-        {value, car}
+      _ -> nil
     end
   end
 

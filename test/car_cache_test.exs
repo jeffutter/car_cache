@@ -63,7 +63,7 @@ defmodule CarCacheTest do
     end
 
     def post(_state, [_cache, key, value], cache) do
-      {v, _} = CarCache.get(cache, key)
+      v = CarCache.get(cache, key)
       v == value
     end
 
@@ -74,12 +74,7 @@ defmodule CarCacheTest do
 
   defcommand :get do
     def impl(cache, key) do
-      {_, cache} = CarCache.get(cache, key)
-      cache
-    end
-
-    def next(state, [_cache, _key], cache) do
-      %{state | cache: cache}
+      CarCache.get(cache, key)
     end
   end
 end
