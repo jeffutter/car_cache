@@ -59,104 +59,105 @@ defmodule CarCache do
       [{^key, value, ^t2_name, 1}] ->
         value
 
-      _ -> nil
+      _ ->
+        nil
     end
   end
 
   @spec insert(t(), any(), any()) :: t()
   def insert(car, key, value) do
-    car =
-      if Clock.size(car.t1) + Clock.size(car.t2) == car.c do
-        # cache full, replace a page from cache
-        car = replace(car)
-        # cache directory replacement
-        cond do
-          (!LRU.member?(car.b1, key) || !LRU.member?(car.b2, key)) &&
-              Clock.size(car.t1) + LRU.size(car.b1) == car.c ->
-            # Discard the LRU page in B1.
-            {_, _, b1} = LRU.pop(car.b1)
-            %__MODULE__{car | b1: b1}
-
-          Clock.size(car.t1) + Clock.size(car.t2) + LRU.size(car.b1) + LRU.size(car.b2) == 2 * car.c &&
-              (!LRU.member?(car.b1, key) || !LRU.member?(car.b2, key)) ->
-            # Discard the LRU page in B2.
-            {_, _, b2} = LRU.pop(car.b2)
-            %__MODULE__{car | b2: b2}
-        end
-      else
+    case :ets.lookup(car.data, key) do
+      [{^key, ^value, _, _}] ->
         car
-      end
 
-    cond do
-      # cache directory miss
-      !LRU.member?(car.b1, key) && !LRU.member?(car.b2, key) ->
-        IO.inspect(key, label: "Cache Miss")
+      [{^key, _value, _, _}] ->
+        :ets.update_element(car.data, key, {2, value})
+        car
 
-        # Insert x at the tail of T1. Set the page reference bit of x to 0.
-        t1 = Clock.insert(car.t1, key, value)
-        %__MODULE__{car | t1: t1}
+      [] ->
+        car =
+          if Clock.size(car.t1) + Clock.size(car.t2) == car.c do
+            # cache full, replace a page from cache
+            car = replace(car)
+            # cache directory replacement
 
-      # cache directory hit
-      LRU.member?(car.b1, key) ->
-        # IO.inspect(key, label: "B1 Hit")
+            cond do
+              (!LRU.member?(car.b1, key) || !LRU.member?(car.b2, key)) &&
+                  Clock.size(car.t1) + LRU.size(car.b1) == car.c ->
+                # Discard the LRU page in B1.
+                {_, _, b1} = LRU.pop(car.b1)
+                %__MODULE__{car | b1: b1}
 
-        # Adapt:Increase the target size for the list T1 as:p=min{p+max{1,|B2|/|B1|},c}
-        p = min(car.p + max(1, LRU.size(car.b2) / LRU.size(car.b1)), car.c)
+              Clock.size(car.t1) + Clock.size(car.t2) + LRU.size(car.b1) + LRU.size(car.b2) == 2 * car.c &&
+                  (!LRU.member?(car.b1, key) || !LRU.member?(car.b2, key)) ->
+                # Discard the LRU page in B2.
+                {_, _, b2} = LRU.pop(car.b2)
+                %__MODULE__{car | b2: b2}
 
-        car = %__MODULE__{car | p: p}
+              true ->
+                car
+            end
+          else
+            car
+          end
 
-        # Move x at the tail of T2. Set the page reference bit of x to 0.
-        t2 = Clock.insert(car.t2, key, value)
-        %__MODULE__{car | t2: t2}
+        cond do
+          # cache directory miss
+          !LRU.member?(car.b1, key) && !LRU.member?(car.b2, key) ->
+            # Insert x at the tail of T1. Set the page reference bit of x to 0.
+            t1 = Clock.insert(car.t1, key, value)
+            %__MODULE__{car | t1: t1}
 
-      # cache directory hit
-      # x must be in B2
-      true ->
-        # IO.inspect(key, label: "B2 Hit")
+          # cache directory hit
+          LRU.member?(car.b1, key) ->
+            # Adapt:Increase the target size for the list T1 as:p=min{p+max{1,|B2|/|B1|},c}
+            p = min(car.p + max(1, LRU.size(car.b2) / LRU.size(car.b1)), car.c)
 
-        # Adapt:Decrease the target size for the list T1 as:p=max{p−max{1,|B1|/|B2|},0}
-        p = max(car.p - max(1, LRU.size(car.b1) / LRU.size(car.b2)), 0)
+            car = %__MODULE__{car | p: p}
 
-        car = %__MODULE__{car | p: p}
+            # Move x at the tail of T2. Set the page reference bit of x to 0.
+            t2 = Clock.insert(car.t2, key, value)
+            %__MODULE__{car | t2: t2}
 
-        # Move x at the tail of T2. Set the page reference bit of x to 0.
-        t2 = Clock.insert(car.t2, key, value)
-        %__MODULE__{car | t2: t2}
+          # cache directory hit
+          # x must be in B2
+          true ->
+            # Adapt:Decrease the target size for the list T1 as:p=max{p−max{1,|B1|/|B2|},0}
+            p = max(car.p - max(1, LRU.size(car.b1) / LRU.size(car.b2)), 0)
+
+            car = %__MODULE__{car | p: p}
+
+            # Move x at the tail of T2. Set the page reference bit of x to 0.
+            t2 = Clock.insert(car.t2, key, value)
+            %__MODULE__{car | t2: t2}
+        end
     end
   end
 
   @spec replace(t()) :: t()
   def replace(car) do
     if Clock.size(car.t1) >= max(1, car.p) do
-      # IO.inspect("Replace", label: "t1 > max(1, car.p)")
-
       case Clock.pop(car.t1) do
         {key, value, 0, t1} ->
-          # IO.inspect(0, label: "Ref Bit")
           # Demote the head page in T1 and make it the MRU page in B1.
           b1 = LRU.insert(car.b1, key, value)
           %__MODULE__{car | b1: b1, t1: t1}
 
         {key, value, 1, t1} ->
-          # IO.inspect(1, label: "Ref Bit")
           # Set the page reference bit of head page in T1 to 0, and make it the tail page in T2.
           t2 = Clock.insert(car.t2, key, value)
           replace(%__MODULE__{car | t1: t1, t2: t2})
       end
     else
-      # IO.inspect("Replace", label: "t1 <= max(1, car.p)")
-
       case Clock.pop(car.t2) do
         {key, value, 0, t2} ->
-          # IO.inspect(0, label: "Ref Bit")
           # Demote the head page in T2 and make it the MRU page in B2.
           LRU.insert(car.b2, key, value)
           %__MODULE__{car | t2: t2}
 
         {key, value, 1, t2} ->
-          # IO.inspect(1, label: "Ref Bit")
           # Set the page reference bit of head page in T2 to 0, and make it the tail page in T2.
-          Clock.insert(car.t2, key, value)
+          t2 = Clock.insert(t2, key, value)
           replace(%__MODULE__{car | t2: t2})
       end
     end
