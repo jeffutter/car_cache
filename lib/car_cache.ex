@@ -34,8 +34,8 @@ defmodule CarCache do
       data: data,
       t1: Clock.new(:"#{name}_t1", data),
       t2: Clock.new(:"#{name}_t2", data),
-      b1: LRU.new(:"#{name}_b1", data),
-      b2: LRU.new(:"#{name}_b2", data)
+      b1: LRU.new(),
+      b2: LRU.new()
     }
   end
 
@@ -85,13 +85,13 @@ defmodule CarCache do
               (!LRU.member?(car.b1, key) || !LRU.member?(car.b2, key)) &&
                   Clock.size(car.t1) + LRU.size(car.b1) == car.c ->
                 # Discard the LRU page in B1.
-                {_, _, b1} = LRU.pop(car.b1)
+                b1 = LRU.drop(car.b1)
                 %__MODULE__{car | b1: b1}
 
               Clock.size(car.t1) + Clock.size(car.t2) + LRU.size(car.b1) + LRU.size(car.b2) == 2 * car.c &&
                   (!LRU.member?(car.b1, key) || !LRU.member?(car.b2, key)) ->
                 # Discard the LRU page in B2.
-                {_, _, b2} = LRU.pop(car.b2)
+                b2 = LRU.drop(car.b2)
                 %__MODULE__{car | b2: b2}
 
               true ->
@@ -140,7 +140,7 @@ defmodule CarCache do
       case Clock.pop(car.t1) do
         {key, _value, 0, t1} ->
           # Demote the head page in T1 and make it the MRU page in B1.
-          b1 = LRU.insert(car.b1, key, nil)
+          b1 = LRU.insert(car.b1, key)
           %__MODULE__{car | b1: b1, t1: t1}
 
         {key, value, 1, t1} ->
@@ -152,7 +152,7 @@ defmodule CarCache do
       case Clock.pop(car.t2) do
         {key, _value, 0, t2} ->
           # Demote the head page in T2 and make it the MRU page in B2.
-          LRU.insert(car.b2, key, nil)
+          LRU.insert(car.b2, key)
           %__MODULE__{car | t2: t2}
 
         {key, value, 1, t2} ->
