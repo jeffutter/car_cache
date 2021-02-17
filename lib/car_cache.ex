@@ -138,9 +138,9 @@ defmodule CarCache do
   def replace(car) do
     if Clock.size(car.t1) >= max(1, car.p) do
       case Clock.pop(car.t1) do
-        {key, value, 0, t1} ->
+        {key, _value, 0, t1} ->
           # Demote the head page in T1 and make it the MRU page in B1.
-          b1 = LRU.insert(car.b1, key, value)
+          b1 = LRU.insert(car.b1, key, nil)
           %__MODULE__{car | b1: b1, t1: t1}
 
         {key, value, 1, t1} ->
@@ -150,9 +150,9 @@ defmodule CarCache do
       end
     else
       case Clock.pop(car.t2) do
-        {key, value, 0, t2} ->
+        {key, _value, 0, t2} ->
           # Demote the head page in T2 and make it the MRU page in B2.
-          LRU.insert(car.b2, key, value)
+          LRU.insert(car.b2, key, nil)
           %__MODULE__{car | t2: t2}
 
         {key, value, 1, t2} ->

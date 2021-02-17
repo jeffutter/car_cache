@@ -33,21 +33,6 @@ defmodule CarCache.LRU do
     }
   end
 
-  @spec get(t(), any()) :: any()
-  def get(lru, key) do
-    name = lru.name
-
-    case :ets.lookup(lru.data_table, key) do
-      [] ->
-        nil
-
-      [{^key, value, ^name, _}] ->
-        touch(lru, key)
-
-        value
-    end
-  end
-
   @spec pop(t()) :: {any(), any(), t()}
   def pop(lru) do
     name = lru.name
