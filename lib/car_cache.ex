@@ -76,19 +76,18 @@ defmodule CarCache do
 
       [] ->
         car =
-          if Clock.size(car.t1) + Clock.size(car.t2) == car.c do
+          if car.t1.size + car.t2.size == car.c do
             # cache full, replace a page from cache
             car = replace(car)
             # cache directory replacement
 
             cond do
-              (!LRU.member?(car.b1, key) || !LRU.member?(car.b2, key)) &&
-                  Clock.size(car.t1) + LRU.size(car.b1) == car.c ->
+              (!LRU.member?(car.b1, key) || !LRU.member?(car.b2, key)) && car.t1.size + car.b1.size == car.c ->
                 # Discard the LRU page in B1.
                 b1 = LRU.drop(car.b1)
                 %__MODULE__{car | b1: b1}
 
-              Clock.size(car.t1) + Clock.size(car.t2) + LRU.size(car.b1) + LRU.size(car.b2) == 2 * car.c &&
+              car.t1.size + car.t2.size + car.b1.size + car.b2.size == 2 * car.c &&
                   (!LRU.member?(car.b1, key) || !LRU.member?(car.b2, key)) ->
                 # Discard the LRU page in B2.
                 b2 = LRU.drop(car.b2)
@@ -111,7 +110,7 @@ defmodule CarCache do
           # cache directory hit
           LRU.member?(car.b1, key) ->
             # Adapt:Increase the target size for the list T1 as:p=min{p+max{1,|B2|/|B1|},c}
-            p = min(car.p + max(1, LRU.size(car.b2) / LRU.size(car.b1)), car.c)
+            p = min(car.p + max(1, car.b2.size / car.b1.size), car.c)
 
             car = %__MODULE__{car | p: p}
 
@@ -123,7 +122,7 @@ defmodule CarCache do
           # x must be in B2
           true ->
             # Adapt:Decrease the target size for the list T1 as:p=max{p−max{1,|B1|/|B2|},0}
-            p = max(car.p - max(1, LRU.size(car.b1) / LRU.size(car.b2)), 0)
+            p = max(car.p - max(1, car.b1.size / car.b2.size), 0)
 
             car = %__MODULE__{car | p: p}
 
@@ -136,7 +135,7 @@ defmodule CarCache do
 
   @spec replace(t()) :: t()
   def replace(car) do
-    if Clock.size(car.t1) >= max(1, car.p) do
+    if car.t1.size >= max(1, car.p) do
       case Clock.pop(car.t1) do
         {key, _value, 0, t1} ->
           # Demote the head page in T1 and make it the MRU page in B1.

@@ -1,4 +1,11 @@
 defmodule CarCache.Clock do
+  @moduledoc """
+  Data structure representing a "CLOCK".
+
+  This implementation uses a circular zipper list to track the clock hand and
+  an ETS table to store the data (and for quick lookups.)
+  """
+
   alias CarCache.CircularZipperList
 
   defstruct name: nil,
@@ -13,6 +20,9 @@ defmodule CarCache.Clock do
           czl: CircularZipperList.t()
         }
 
+  @doc """
+  Return a new/empty Clock
+  """
   @spec new(atom(), :ets.tid(), Keyword.t()) :: t()
   def new(name, data_table, _opts \\ []) do
     %__MODULE__{
@@ -23,6 +33,9 @@ defmodule CarCache.Clock do
     }
   end
 
+  @doc """
+  Pop the next value after the clock hand
+  """
   @spec pop(t()) :: {any(), any(), 0 | 1, t()}
   def pop(clock) do
     name = clock.name
@@ -36,6 +49,9 @@ defmodule CarCache.Clock do
     {key, value, ref_bit, %__MODULE__{clock | czl: czl, size: clock.size - 1}}
   end
 
+  @doc """
+  Check if the clock contains a given key
+  """
   @spec member?(t(), any()) :: boolean()
   def member?(clock, key) do
     name = clock.name
@@ -46,11 +62,9 @@ defmodule CarCache.Clock do
     end
   end
 
-  @spec size(t()) :: non_neg_integer()
-  def size(clock) do
-    clock.size
-  end
-
+  @doc """
+  Insert a new key/value behind the clock hand
+  """
   @spec insert(t(), any(), any()) :: t()
   def insert(clock, key, value) do
     czl = CircularZipperList.insert(clock.czl, key)
