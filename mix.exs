@@ -21,6 +21,7 @@ defmodule CarCache.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:nimble_options, "~> 0.3.0"},
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:propcheck, "~> 1.3", github: "alfert/propcheck", only: [:dev, :test]}
     ]
