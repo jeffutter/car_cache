@@ -16,6 +16,7 @@ defmodule CarCache.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       package: package(),
+      dialyzer: dialyzer(),
       docs: docs()
     ]
   end
@@ -32,9 +33,16 @@ defmodule CarCache.MixProject do
     [
       {:telemetry, "~> 0.4"},
       {:nimble_options, "~> 0.3.0"},
-      {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
+      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:propcheck, "~> 1.3", github: "alfert/propcheck", only: [:dev, :test]},
       {:ex_doc, "~> 0.20", only: :dev, runtime: false}
+    ]
+  end
+
+  defp dialyzer do
+    [
+      plt_core_path: "priv/plts",
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
     ]
   end
 
