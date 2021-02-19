@@ -2,7 +2,7 @@
 
 <!-- MDOC !-->
 
-Clock with adaptive replacement (CAR) cache, based on the following paper:
+CLOCK with adaptive replacement (CAR) cache, based on the following paper:
 
 https://www.usenix.org/legacy/publications/library/proceedings/fast04/tech/full_papers/bansal/bansal.pdf
 

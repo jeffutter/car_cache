@@ -1,6 +1,6 @@
 defmodule CarCache.Cache do
   @moduledoc """
-  Data structure representing a car cache.
+  Data structure representing an CAR cache.
   """
 
   alias CarCache.Clock
