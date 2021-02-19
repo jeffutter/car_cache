@@ -35,7 +35,7 @@ defmodule CarCache.CacheTest do
   end
 
   def command_gen(%{cache: cache, inserted: inserted}) when inserted == %{} do
-    {:insert, [cache, key(), value()]}
+    {:put, [cache, key(), value()]}
   end
 
   def command_gen(%{cache: cache, inserted: inserted}) do
@@ -48,7 +48,7 @@ defmodule CarCache.CacheTest do
     key = weighted_union([{1, known_key}, {4, key()}])
 
     frequency([
-      {4, {:insert, [cache, key, value()]}},
+      {4, {:put, [cache, key, value()]}},
       {1, {:get, [cache, key]}}
     ])
   end
@@ -63,9 +63,9 @@ defmodule CarCache.CacheTest do
     end
   end
 
-  defcommand :insert do
+  defcommand :put do
     def impl(cache, key, value) do
-      Cache.insert(cache, key, value)
+      Cache.put(cache, key, value)
     end
 
     def post(state, [_cache, key, value], cache) do

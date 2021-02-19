@@ -23,6 +23,12 @@ defmodule CarCache do
 
   # Public Functions
 
+  @doc """
+  Starts a new cache.
+
+  Options:
+  #{NimbleOptions.docs(@options_schema)}
+  """
   def start_link(opts) do
     opts = NimbleOptions.validate!(opts, @options_schema)
     GenServer.start_link(__MODULE__, opts, name: opts[:name])
@@ -35,40 +41,72 @@ defmodule CarCache do
     {:ok, %{cache: cache}}
   end
 
-  def insert(name, key, value) do
-    GenServer.call(name, {:insert, key, value})
+  @doc """
+  Insert a value into the cache under a given key
+
+
+  ## Example
+
+  ```
+  CarCache.put(:my_cache, user_id, profile)
+  ```
+  """
+  @spec put(atom(), any(), any()) :: :ok
+  def put(name, key, value) do
+    GenServer.call(name, {:put, key, value})
   end
 
+  @doc """
+  Get a value from the cache, if it exists in the cache
+
+  ## Example
+
+  ```
+  CarCache.get(:my_cache, user_id)
+  ```
+  """
+  @spec get(atom(), any()) :: any()
   def get(name, key) do
-    data_name = :"#{name}_data"
-    t1_name = :"#{name}_t1"
-    t2_name = :"#{name}_t2"
+    Cache.get(name, key)
+  end
 
-    case :ets.lookup(data_name, key) do
-      [{^key, value, ^t1_name, 0}] ->
-        :ets.update_element(data_name, key, {4, 1})
-        value
+  @doc """
+  Fetches the value from the cache if it exists, otherwise executes `fallback`.
 
-      [{^key, value, ^t1_name, 1}] ->
-        value
+  The fallback function can return either `{:commit, any()}` or
+  `{:ignore, any()}`. If `{:commit, any()}` is returned, the value will be
+  stored in the cache
 
-      [{^key, value, ^t2_name, 0}] ->
-        :ets.update_element(data_name, key, {4, 1})
-        value
+  ## Example
 
-      [{^key, value, ^t2_name, 1}] ->
-        value
+  ```
+  CarCache.get(:my_cache, user_id, fn ->
+    case Profile.get(user_id) do
+      {:ok, profile} -> {:commit, profile}
+      {:error, _reason} = error -> {:ignore, error}
+    end
+  end)
+  ```
+  """
+  @spec fetch(atom(), any(), (() -> {:commit, any()} | {:ignore, any()})) :: any()
+  def fetch(name, key, fallback) do
+    with nil <- get(name, key) do
+      case fallback.() do
+        {:commit, value} ->
+          put(name, key, value)
+          value
 
-      _ ->
-        nil
+        {:ignore, value} ->
+          value
+      end
     end
   end
 
   # Callbacks
 
   @impl true
-  def handle_call({:insert, key, value}, _from, state) do
-    cache = Cache.insert(state.cache, key, value)
+  def handle_call({:put, key, value}, _from, state) do
+    cache = Cache.put(state.cache, key, value)
     {:reply, :ok, %{state | cache: cache}}
   end
 end

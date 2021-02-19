@@ -14,7 +14,7 @@ defmodule CarCacheTest do
         {:ok, pid} = CarCache.start_link(name: :test, max_size: 100)
 
         r = run_commands(__MODULE__, cmds)
-        w({_history, _state, result} = r)
+        {_history, _state, result} = r
 
         if pid && Process.alive?(pid) do
           GenServer.stop(pid)
@@ -29,7 +29,7 @@ defmodule CarCacheTest do
   def initial_state, do: %{name: :test, inserted: %{}, full: false, max_size: 100}
 
   def command_gen(%{name: name, inserted: inserted}) when inserted == %{} do
-    {:insert, [name, key(), value()]}
+    {:put, [name, key(), value()]}
   end
 
   def command_gen(%{name: name, inserted: inserted}) do
@@ -42,14 +42,14 @@ defmodule CarCacheTest do
     key = weighted_union([{1, known_key}, {4, key()}])
 
     frequency([
-      {4, {:insert, [name, key, value()]}},
+      {4, {:put, [name, key, value()]}},
       {1, {:get, [name, key]}}
     ])
   end
 
-  defcommand :insert do
+  defcommand :put do
     def impl(name, key, value) do
-      CarCache.insert(name, key, value)
+      CarCache.put(name, key, value)
     end
 
     def post(state, [name, key, value], _) do
