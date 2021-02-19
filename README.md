@@ -6,8 +6,8 @@
 [![Module Version](https://img.shields.io/hexpm/v/car_cache.svg)](https://hex.pm/packages/car_cache)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/car_cache/)
 [![Total Download](https://img.shields.io/hexpm/dt/car_cache.svg)](https://hex.pm/packages/car_cache)
-[![License](https://img.shields.io/hexpm/l/car_cache.svg)](https://github.com/jeffutter/car_cache/blob/main/LICENSE.md)
-[![Last Updated](https://img.shields.io/github/last-commit/jeffutter/car_cache.svg)](https://github.com/jeffutter/car_cache/commits/main)
+[![License](https://img.shields.io/hexpm/l/car_cache.svg)](https://github.com/jeffutter/car_cache/blob/master/LICENSE.md)
+[![Last Updated](https://img.shields.io/github/last-commit/jeffutter/car_cache.svg)](https://github.com/jeffutter/car_cache/commits/master)
 
 CLOCK with adaptive replacement (CAR) cache, based on the following paper:
 
