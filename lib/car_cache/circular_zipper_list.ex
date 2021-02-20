@@ -61,4 +61,11 @@ defmodule CarCache.CircularZipperList do
   @spec replace(t(), any) :: t()
   def replace({[], []}, val), do: insert({[], []}, val)
   def replace({pre, [_ | post]}, val), do: {pre, [val | post]}
+
+  @doc """
+  Delets a value from anywhere in the data structure
+  """
+  @spec delete(t(), any) :: t()
+  def delete({pre, [val]}, val), do: {[], Enum.reverse(pre)}
+  def delete({pre, post}, val), do: {pre -- [val], post -- [val]}
 end

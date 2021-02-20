@@ -85,6 +85,35 @@ defmodule CarCache.Cache do
   end
 
   @doc """
+  Deletes an item from the cache
+  """
+  @spec delete(t(), any()) :: t()
+  def delete(car, key) do
+    start_time = System.monotonic_time()
+    t1_name = car.t1.name
+    t2_name = car.t2.name
+
+    car =
+      case :ets.lookup(car.data, key) do
+        [{^key, _, ^t1_name, _}] ->
+          t1 = Clock.delete(car.t1, key)
+          delete_telemetry(car, key, start_time)
+          %__MODULE__{car | t1: t1}
+
+        [{^key, _, ^t2_name, _}] ->
+          t2 = Clock.delete(car.t2, key)
+          delete_telemetry(car, key, start_time)
+          %__MODULE__{car | t2: t2}
+
+        [] ->
+          delete_telemetry(car, key, start_time)
+          car
+      end
+
+    %__MODULE__{car | b1: LRU.delete(car.b1, key), b2: LRU.delete(car.b2, key)}
+  end
+
+  @doc """
   Insert an item in the cache
   """
   @spec put(t(), any(), any()) :: t()
@@ -204,5 +233,13 @@ defmodule CarCache.Cache do
     delta = end_time - start_time
 
     :telemetry.execute([:car_cache, :put], %{duration: delta}, %{key: key, cache: car.name})
+  end
+
+  @spec delete_telemetry(t(), any(), non_neg_integer()) :: :ok
+  defp delete_telemetry(car, key, start_time) do
+    end_time = System.monotonic_time()
+    delta = end_time - start_time
+
+    :telemetry.execute([:car_cache, :delete], %{duration: delta}, %{key: key, cache: car.name})
   end
 end
