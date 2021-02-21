@@ -67,34 +67,10 @@ defmodule CarCache.Clock do
   """
   @spec insert(t(), any(), any()) :: t()
   def insert(clock, key, value) do
-    czl =
-      clock.czl
-      |> CircularZipperList.insert(key)
-      |> CircularZipperList.next()
-
+    czl = CircularZipperList.insert(clock.czl, key)
+    czl = CircularZipperList.next(czl)
     :ets.insert(clock.data_table, {key, value, clock.name, 0})
 
     %__MODULE__{clock | czl: czl, size: clock.size + 1}
-  end
-
-  @doc """
-  Deletes a given key from the clock without adjusting the clock hand
-  """
-  @spec delete(t(), any()) :: t()
-  def delete(clock, key) do
-    name = clock.name
-    czl = CircularZipperList.delete(clock.czl, key)
-
-    size =
-      case czl == clock.czl do
-        true -> clock.size
-        false -> clock.size - 1
-      end
-
-    [{^key, _value, ^name, _ref_bit}] = :ets.lookup(clock.data_table, key)
-
-    :ets.delete(clock.data_table, key)
-
-    %__MODULE__{clock | czl: czl, size: size}
   end
 end

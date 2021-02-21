@@ -71,6 +71,20 @@ defmodule CarCache do
   end
 
   @doc """
+  Delete a key from the cache
+
+  ## Example
+
+  ```
+  CarCache.delete(:my_cache, user_id)
+  ```
+  """
+  @spec delete(atom(), any()) :: any()
+  def delete(name, key) do
+    GenServer.call(name, {:delete, key})
+  end
+
+  @doc """
   Fetches the value from the cache if it exists, otherwise executes `fallback`.
 
   The fallback function can return either `{:commit, any()}` or
@@ -107,6 +121,12 @@ defmodule CarCache do
   @impl true
   def handle_call({:put, key, value}, _from, state) do
     cache = Cache.put(state.cache, key, value)
+    {:reply, :ok, %{state | cache: cache}}
+  end
+
+  @impl true
+  def handle_call({:delete, key}, _from, state) do
+    cache = Cache.delete(state.cache, key)
     {:reply, :ok, %{state | cache: cache}}
   end
 end

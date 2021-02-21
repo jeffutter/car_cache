@@ -47,24 +47,8 @@ defmodule CarCache.LRU do
   """
   @spec insert(t(), any()) :: t()
   def insert(lru, key) do
-    queue = :queue.filter(&(&1 != key), lru.queue)
+    queue = :queue.filter(&(&1 == key), lru.queue)
     queue = :queue.in(key, queue)
     %__MODULE__{lru | queue: queue, size: lru.size + 1}
-  end
-
-  @doc """
-  Remove an item from the list
-  """
-  @spec delete(t(), any()) :: t()
-  def delete(lru, key) do
-    queue = :queue.filter(&(&1 != key), lru.queue)
-
-    size =
-      case queue == lru.queue do
-        true -> lru.size
-        false -> lru.size - 1
-      end
-
-    %__MODULE__{lru | queue: queue, size: size}
   end
 end

@@ -60,6 +60,14 @@ defmodule CarCache.Cache do
     t2_name = :"#{name}_t2"
 
     case :ets.lookup(data_name, key) do
+      [{^key, :deleted, ^t1_name, _}] ->
+        :telemetry.execute([:car_cache, :get], %{status: :deleted}, %{key: key, name: name, level: :t1})
+        nil
+
+      [{^key, :deleted, ^t2_name, _}] ->
+        :telemetry.execute([:car_cache, :get], %{status: :deleted}, %{key: key, name: name, level: :t2})
+        nil
+
       [{^key, value, ^t1_name, 0}] ->
         :telemetry.execute([:car_cache, :get], %{status: :miss}, %{key: key, name: name, level: :t1})
         :ets.update_element(data_name, key, {4, 1})
@@ -82,35 +90,6 @@ defmodule CarCache.Cache do
         :telemetry.execute([:car_cache, :get], %{status: :miss}, %{key: key, cache: name})
         nil
     end
-  end
-
-  @doc """
-  Deletes an item from the cache
-  """
-  @spec delete(t(), any()) :: t()
-  def delete(car, key) do
-    start_time = System.monotonic_time()
-    t1_name = car.t1.name
-    t2_name = car.t2.name
-
-    car =
-      case :ets.lookup(car.data, key) do
-        [{^key, _, ^t1_name, _}] ->
-          t1 = Clock.delete(car.t1, key)
-          delete_telemetry(car, key, start_time)
-          %__MODULE__{car | t1: t1}
-
-        [{^key, _, ^t2_name, _}] ->
-          t2 = Clock.delete(car.t2, key)
-          delete_telemetry(car, key, start_time)
-          %__MODULE__{car | t2: t2}
-
-        [] ->
-          delete_telemetry(car, key, start_time)
-          car
-      end
-
-    %__MODULE__{car | b1: LRU.delete(car.b1, key), b2: LRU.delete(car.b2, key)}
   end
 
   @doc """
@@ -227,19 +206,29 @@ defmodule CarCache.Cache do
     end
   end
 
+  @doc """
+  Mark a key as deleted.
+
+  It will not be returned on a get and will be eventually evicted from the
+  cache as more keys are inserted.
+  """
+  @spec delete(t(), any()) :: t()
+  def delete(car, key) do
+    case :ets.lookup(car.data, key) do
+      [] ->
+        car
+
+      [{^key, _value, _, _}] ->
+        :ets.update_element(car.data, key, {2, :deleted})
+        car
+    end
+  end
+
   @spec put_telemetry(t(), any(), non_neg_integer()) :: :ok
   defp put_telemetry(car, key, start_time) do
     end_time = System.monotonic_time()
     delta = end_time - start_time
 
     :telemetry.execute([:car_cache, :put], %{duration: delta}, %{key: key, cache: car.name})
-  end
-
-  @spec delete_telemetry(t(), any(), non_neg_integer()) :: :ok
-  defp delete_telemetry(car, key, start_time) do
-    end_time = System.monotonic_time()
-    delta = end_time - start_time
-
-    :telemetry.execute([:car_cache, :delete], %{duration: delta}, %{key: key, cache: car.name})
   end
 end

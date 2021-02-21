@@ -43,7 +43,8 @@ defmodule CarCacheTest do
 
     frequency([
       {4, {:put, [name, key, value()]}},
-      {1, {:get, [name, key]}}
+      {1, {:get, [name, key]}},
+      {1, {:delete, [name, weighted_union([{4, known_key}, {1, key()}])]}}
     ])
   end
 
@@ -78,6 +79,23 @@ defmodule CarCacheTest do
   defcommand :get do
     def impl(name, key) do
       CarCache.get(name, key)
+    end
+  end
+
+  defcommand :delete do
+    def impl(name, key) do
+      CarCache.delete(name, key)
+    end
+
+    def post(state, [name, key], _) do
+      CarCache.get(name, key) == nil
+    end
+
+    def next(state, [_name, key], _) do
+      inserted = Map.delete(state.inserted, key)
+      full = length(Map.keys(inserted)) >= state.max_size
+
+      %{state | inserted: inserted, full: full}
     end
   end
 end
