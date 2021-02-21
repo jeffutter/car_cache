@@ -88,8 +88,7 @@ defmodule CarCache.CacheTest do
     end
 
     def next(state, [_cache, key, value], cache) do
-      existing_key = Map.has_key?(state.inserted, key)
-      full = !existing_key && length(Map.keys(state.inserted)) >= state.max_size
+      full = length(Map.keys(state.inserted)) >= state.max_size
 
       %{state | cache: cache, inserted: Map.put(state.inserted, key, value), full: full}
     end
@@ -112,9 +111,11 @@ defmodule CarCache.CacheTest do
       Cache.delete(cache, key)
     end
 
-    def post(_state, [_cache, key], cache) do
-      Cache.get(cache, key) == nil &&
-        i1(cache) && i2(cache) && i3(cache) && i4(cache)
+    def post(state, [_cache, key], cache) do
+      inserted = Map.delete(state.inserted, key)
+      full = length(Map.keys(inserted)) >= state.max_size
+
+      Cache.get(cache, key) == nil && invariants(cache, full)
     end
 
     def next(state, [_cache, key], cache) do
@@ -179,7 +180,7 @@ defmodule CarCache.CacheTest do
   end
 
   def i5(cache) do
-    # I5 If |T1|+|T2|<c, then B1 ∪ B2 is empty.
+    # I5 If |T1|+|T2|<c, then B1 ∪B2 is empty.
     if cache.t1.size + cache.t2.size < cache.c do
       if cache.b1.size == 0 && cache.b2.size == 0 do
         true
