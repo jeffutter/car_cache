@@ -2,7 +2,7 @@ defmodule CarCache.MixProject do
   use Mix.Project
 
   @name "CarCache"
-  @version "0.1.0"
+  @version "0.1.1"
   @repo_url "https://github.com/jeffutter/car_cache"
 
   def project do
